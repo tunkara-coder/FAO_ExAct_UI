@@ -1,0 +1,337 @@
+class EXACTApp {
+    constructor() {
+        this.currentUser = null;
+        this.currentProject = null;
+        this.isOnline = navigator.onLine;
+        this.init();
+    }
+
+    async init() {
+        // Check authentication
+        await this.checkAuth();
+        
+        // Initialize service worker for offline capability
+        await this.initServiceWorker();
+        
+        // Set up online/offline detection
+        this.setupConnectivityDetection();
+        
+        // Load appropriate view based on auth status
+        this.loadView();
+    }
+
+    async checkAuth() {
+        const token = localStorage.getItem('exact_token');
+        if (token) {
+            try {
+                // Verify token validity
+                const userData = await this.verifyToken(token);
+                this.currentUser = userData;
+            } catch (error) {
+                localStorage.removeItem('exact_token');
+                this.currentUser = null;
+            }
+        }
+    }
+
+    async verifyToken(token) {
+        // In a real implementation, this would call your API
+        // For demo purposes, we'll use mock data
+        return {
+            id: 1,
+            name: "Field Agent",
+            email: "agent@gambia.gov.gm",
+            role: "field_agent",
+            region: "Banjul"
+        };
+    }
+
+    async initServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            try {
+                const registration = await navigator.serviceWorker.register('/service-worker.js');
+                console.log('Service Worker registered successfully');
+            } catch (error) {
+                console.error('Service Worker registration failed:', error);
+            }
+        }
+    }
+
+    setupConnectivityDetection() {
+        window.addEventListener('online', () => {
+            this.isOnline = true;
+            this.updateOnlineStatus();
+            this.syncOfflineData();
+        });
+
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            this.updateOnlineStatus();
+        });
+    }
+
+    updateOnlineStatus() {
+        const indicator = document.getElementById('offline-indicator');
+        if (this.isOnline) {
+            indicator.classList.remove('offline-visible');
+            indicator.classList.add('offline-hidden');
+        } else {
+            indicator.classList.remove('offline-hidden');
+            indicator.classList.add('offline-visible');
+        }
+    }
+
+    async syncOfflineData() {
+        // Sync any pending offline operations
+        const pendingOps = JSON.parse(localStorage.getItem('pending_operations') || '[]');
+        
+        for (const op of pendingOps) {
+            try {
+                await this.submitOperation(op);
+                // Remove from pending operations on success
+                pendingOps.splice(pendingOps.indexOf(op), 1);
+            } catch (error) {
+                console.error('Failed to sync operation:', op, error);
+            }
+        }
+        
+        localStorage.setItem('pending_operations', JSON.stringify(pendingOps));
+    }
+
+    async submitOperation(operation) {
+        // API call to submit the operation
+        // This is a simplified example
+        const response = await fetch('/api/operations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('exact_token')}`
+            },
+            body: JSON.stringify(operation)
+        });
+        
+        if (!response.ok) throw new Error('Operation failed');
+        return response.json();
+    }
+
+    loadView() {
+        const appElement = document.getElementById('app');
+        
+        if (!this.currentUser) {
+            this.showLoginView(appElement);
+        } else {
+            this.showDashboardView(appElement);
+        }
+    }
+
+    showLoginView(container) {
+        container.innerHTML = `
+            <div class="login-container">
+                <div class="login-card card">
+                    <div class="login-header">
+                        <h1>EX-ACT Gambia</h1>
+                        <p>Greenhouse Gas Emissions Calculator</p>
+                    </div>
+                    
+                    <form id="login-form">
+                        <div class="form-group">
+                            <label class="form-label" for="username">Email or Username</label>
+                            <input type="text" id="username" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="password">Password</label>
+                            <input type="password" id="password" class="form-input" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="offline-mode"> Work Offline
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            Sign In
+                        </button>
+                    </form>
+                    
+                    <div class="login-footer">
+                        <p>Don't have an account? <a href="#" id="register-link">Contact Administrator</a></p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('login-form').addEventListener('submit', (e) => this.handleLogin(e));
+    }
+
+    async handleLogin(event) {
+        event.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const offlineMode = document.getElementById('offline-mode').checked;
+
+        try {
+            const userData = await this.authenticate(username, password, offlineMode);
+            this.currentUser = userData;
+            localStorage.setItem('exact_token', 'mock_jwt_token');
+            this.loadView();
+        } catch (error) {
+            this.showError('Login failed: ' + error.message);
+        }
+    }
+
+    async authenticate(username, password, offlineMode) {
+        // Mock authentication - replace with actual API call
+        if (username === 'demo' && password === 'demo') {
+            return {
+                id: 1,
+                name: "Demo User",
+                email: "demo@gambia.gov.gm",
+                role: "field_agent",
+                region: "Banjul"
+            };
+        }
+        throw new Error('Invalid credentials');
+    }
+
+    showDashboardView(container) {
+        container.innerHTML = `
+            <div class="header">
+                <div class="container">
+                    <nav class="navbar">
+                        <div class="logo">EX-ACT Gambia</div>
+                        <div class="user-menu">
+                            <span>Welcome, ${this.currentUser.name}</span>
+                            <button class="btn btn-secondary" onclick="app.logout()">Logout</button>
+                        </div>
+                    </nav>
+                </div>
+            </div>
+
+            <div class="container">
+                <div class="dashboard-header">
+                    <h1>Project Dashboard</h1>
+                    <button class="btn btn-primary" onclick="app.createNewProject()">
+                        + New Project
+                    </button>
+                </div>
+
+                <div class="projects-grid" id="projects-container">
+                    <!-- Projects will be loaded here -->
+                </div>
+
+                <div class="quick-stats">
+                    <div class="stat-card card">
+                        <h3>Total Projects</h3>
+                        <span class="stat-number" id="total-projects">0</span>
+                    </div>
+                    <div class="stat-card card">
+                        <h3>Emissions Reduced</h3>
+                        <span class="stat-number" id="total-reductions">0 tCO₂e</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.loadUserProjects();
+    }
+
+    async loadUserProjects() {
+        try {
+            const projects = await this.fetchUserProjects();
+            this.renderProjects(projects);
+        } catch (error) {
+            console.error('Failed to load projects:', error);
+        }
+    }
+
+    async fetchUserProjects() {
+        // Mock data - replace with actual API call
+        return [
+            {
+                id: 1,
+                name: "Rice Farm Adaptation",
+                sector: "Agriculture",
+                region: "Banjul",
+                lastModified: "2024-03-15",
+                status: "completed",
+                emissions: -1250
+            },
+            {
+                id: 2,
+                name: "Forest Conservation",
+                sector: "LULUCF",
+                region: "Basse",
+                lastModified: "2024-02-28",
+                status: "draft",
+                emissions: null
+            }
+        ];
+    }
+
+    renderProjects(projects) {
+        const container = document.getElementById('projects-container');
+        const totalProjects = document.getElementById('total-projects');
+        const totalReductions = document.getElementById('total-reductions');
+
+        totalProjects.textContent = projects.length;
+        
+        const totalEmissions = projects
+            .filter(p => p.emissions)
+            .reduce((sum, p) => sum + p.emissions, 0);
+        totalReductions.textContent = `${totalEmissions} tCO₂e`;
+
+        container.innerHTML = projects.map(project => `
+            <div class="project-card card" onclick="app.openProject(${project.id})">
+                <div class="project-header">
+                    <h3>${project.name}</h3>
+                    <span class="project-status ${project.status}">${project.status}</span>
+                </div>
+                <div class="project-details">
+                    <p><strong>Sector:</strong> ${project.sector}</p>
+                    <p><strong>Region:</strong> ${project.region}</p>
+                    <p><strong>Last Modified:</strong> ${project.lastModified}</p>
+                    ${project.emissions ? `<p><strong>Net Emissions:</strong> ${project.emissions} tCO₂e</p>` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    createNewProject() {
+        // Navigate to project creation wizard
+        this.showProjectWizard();
+    }
+
+    openProject(projectId) {
+        // Navigate to project details
+        this.showProjectDetails(projectId);
+    }
+
+    logout() {
+        localStorage.removeItem('exact_token');
+        this.currentUser = null;
+        this.loadView();
+    }
+
+    showError(message) {
+        // Simple error notification
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-notification';
+        errorDiv.innerHTML = `
+            <span>${message}</span>
+            <button onclick="this.parentElement.remove()">×</button>
+        `;
+        document.body.appendChild(errorDiv);
+        
+        setTimeout(() => {
+            if (errorDiv.parentElement) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    }
+}
+
+// Initialize the application
+const app = new EXACTApp();
