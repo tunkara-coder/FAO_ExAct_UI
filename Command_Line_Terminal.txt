@@ -1,0 +1,16 @@
+# Create root directory (if not already inside your repo)
+mkdir exact-gambia-webportal
+cd exact-gambia-webportal
+
+# Create main files and folders
+touch index.html README.md
+mkdir styles scripts assets
+
+# Create CSS files
+touch styles/main.css styles/components.css
+
+# Create JS files
+touch scripts/app.js scripts/auth.js scripts/projects.js scripts/offline.js
+
+# (Optional) Add subfolders for assets like images or icons
+mkdir assets/images assets/icons
